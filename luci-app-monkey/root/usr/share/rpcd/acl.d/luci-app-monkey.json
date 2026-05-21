@@ -1,22 +1,29 @@
 {
     "luci-app-monkey": {
-        "description": "Grant LuCI access to Monkey (mihomo-rust)",
+        "description": "Grant access to monkey procedures",
         "read": {
-            "file": {
-                "/etc/init.d/monkey": ["exec"],
-                "/usr/bin/monkey": ["read"]
-            },
+            "uci": [ "monkey" ],
             "ubus": {
-                "service": ["list"],
-                "luci.monkey": ["getStatus", "getLog", "getVersion", "clearLog", "start", "stop", "restart"]
+                "rc": [ "*" ],
+                "luci.monkey": [ "*" ]
             },
-            "uci": ["monkey"]
+            "file": {
+                "/etc/monkey/run/config.yaml": ["read"],
+                "/var/log/monkey/*.log": ["read"]
+            }
         },
         "write": {
+            "uci": [ "monkey" ],
             "ubus": {
-                "luci.monkey": ["start", "stop", "restart", "setProfile", "delProfile"]
+                "uci": [ "set", "commit", "apply", "confirm", "rollback" ],
+                "rc": [ "*" ],
+                "luci.monkey": [ "*" ]
             },
-            "uci": ["monkey"]
+            "file": {
+                "/etc/monkey/run/config.yaml": ["write"],
+                "/var/log/monkey/*.log": ["write"],
+                "/etc/init.d/monkey": ["exec"]
+            }
         }
     }
 }

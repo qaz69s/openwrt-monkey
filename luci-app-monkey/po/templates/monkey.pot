@@ -1,0 +1,123 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: luci-app-monkey\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "Monkey"
+msgstr ""
+
+msgid "Status"
+msgstr ""
+
+msgid "Settings"
+msgstr ""
+
+msgid "Config"
+msgstr ""
+
+msgid "Log"
+msgstr ""
+
+msgid "Monkey Running"
+msgstr ""
+
+msgid "Monkey Not Running"
+msgstr ""
+
+msgid "Collecting data…"
+msgstr ""
+
+msgid "Basic Settings"
+msgstr ""
+
+msgid "Enable"
+msgstr ""
+
+msgid "Config File"
+msgstr ""
+
+msgid "Start Delay (seconds)"
+msgstr ""
+
+msgid "Proxy Settings"
+msgstr ""
+
+msgid "IPv4 Proxy"
+msgstr ""
+
+msgid "IPv6 Proxy"
+msgstr ""
+
+msgid "TCP Mode"
+msgstr ""
+
+msgid "UDP Mode"
+msgstr ""
+
+msgid "Disable"
+msgstr ""
+
+msgid "Redirect Mode"
+msgstr ""
+
+msgid "TPROXY Mode"
+msgstr ""
+
+msgid "TUN Mode"
+msgstr ""
+
+msgid "Routing Settings"
+msgstr ""
+
+msgid "TPROXY FWMark"
+msgstr ""
+
+msgid "TPROXY FWMask"
+msgstr ""
+
+msgid "TPROXY Rule Preference"
+msgstr ""
+
+msgid "TPROXY Route Table"
+msgstr ""
+
+msgid "Editor"
+msgstr ""
+
+msgid "Lines"
+msgstr ""
+
+msgid "Unsaved changes"
+msgstr ""
+
+msgid "Saved"
+msgstr ""
+
+msgid "Configuration cannot be empty!"
+msgstr ""
+
+msgid "Configuration saved, applying..."
+msgstr ""
+
+msgid "Configuration applied successfully!"
+msgstr ""
+
+msgid "Saved but apply failed: %s"
+msgstr ""
+
+msgid "Save failed: %s"
+msgstr ""
+
+msgid "Service reload failed"
+msgstr ""
+
+msgid "Font Size"
+msgstr ""
+
+msgid "Comment"
+msgstr ""
+
+msgid "Auto reload on save"
+msgstr ""

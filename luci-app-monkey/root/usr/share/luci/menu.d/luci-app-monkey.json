@@ -1,21 +1,44 @@
 {
     "admin/services/monkey": {
         "title": "Monkey",
-        "action": { "type": "firstchild" },
+        "action": {
+            "type": "firstchild"
+        },
         "depends": {
-            "acl": ["luci-app-monkey"],
-            "fs": { "/etc/init.d/monkey": "executable" },
+            "acl": [ "luci-app-monkey" ],
             "uci": { "monkey": true }
         }
     },
     "admin/services/monkey/config": {
-        "title": "配置",
-        "order": 20,
-        "action": { "type": "view", "path": "monkey/config" }
+        "title": "Status",
+        "order": 10,
+        "action": {
+            "type": "view",
+            "path": "monkey/app"
+        }
     },
-    "admin/services/monkey/logs": {
-        "title": "日志",
+    "admin/services/monkey/proxy": {
+        "title": "Settings",
+        "order": 20,
+        "action": {
+            "type": "view",
+            "path": "monkey/proxy"
+        }
+    },
+    "admin/services/monkey/editor": {
+        "title": "Config",
         "order": 30,
-        "action": { "type": "view", "path": "monkey/logs" }
+        "action": {
+            "type": "view",
+            "path": "monkey/editor"
+        }
+    },
+    "admin/services/monkey/log": {
+        "title": "Log",
+        "order": 40,
+        "action": {
+            "type": "view",
+            "path": "monkey/log"
+        }
     }
 }
