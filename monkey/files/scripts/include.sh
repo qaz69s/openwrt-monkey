@@ -19,6 +19,8 @@ CORE_LOG_PATH="$LOG_DIR/core.log"
 TEMP_DIR="/var/run/monkey"
 PID_FILE_PATH="$TEMP_DIR/monkey.pid"
 STARTED_FLAG_PATH="$TEMP_DIR/started.flag"
+BRIDGE_NF_CALL_IPTABLES_FLAG_PATH="$TEMP_DIR/bridge_nf_call_iptables.flag"
+BRIDGE_NF_CALL_IP6TABLES_FLAG_PATH="$TEMP_DIR/bridge_nf_call_ip6tables.flag"
 
 prepare_files() {
 	mkdir -p "$LOG_DIR" 2>/dev/null
@@ -38,12 +40,17 @@ log() {
 
 del_routing() {
 	config_load monkey
-	local tproxy_route_table
+	local tproxy_route_table tun_route_table
 	config_get tproxy_route_table "routing" "tproxy_route_table" "80"
+	config_get tun_route_table "routing" "tun_route_table" "81"
 	ip -4 rule del table "$tproxy_route_table" 2>/dev/null
+	ip -4 rule del table "$tun_route_table" 2>/dev/null
 	ip -6 rule del table "$tproxy_route_table" 2>/dev/null
+	ip -6 rule del table "$tun_route_table" 2>/dev/null
 	ip -4 route flush table "$tproxy_route_table" 2>/dev/null
+	ip -4 route flush table "$tun_route_table" 2>/dev/null
 	ip -6 route flush table "$tproxy_route_table" 2>/dev/null
+	ip -6 route flush table "$tun_route_table" 2>/dev/null
 }
 
 del_hijack() {

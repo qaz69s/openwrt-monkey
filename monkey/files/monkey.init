@@ -9,6 +9,8 @@ HOME_DIR="/etc/monkey"
 
 . "$IPKG_INSTROOT$HOME_DIR/scripts/include.sh"
 
+extra_command 'update_subscription' 'Update subscription by section id'
+
 boot_func() {
 	prepare_files
 	config_load monkey
@@ -72,7 +74,6 @@ start_service() {
 		fi
 		cp -f "$profile_file" "$RUN_PROFILE_PATH"
 	elif [ "$profile_type" = "mixin" ]; then
-		# 仅使用 mixin 生成本地配置
 		$UCODE_DIR/include.uc > "$RUN_PROFILE_PATH" 2>/dev/null
 		if [ ! -s "$RUN_PROFILE_PATH" ]; then
 			log "Profile" "Mixin generate failed."
@@ -115,11 +116,13 @@ service_started() {
 
 	log "Proxy" "Enabled."
 
-	local ipv4_proxy ipv6_proxy tcp_mode udp_mode
+	local ipv4_proxy ipv6_proxy tcp_mode udp_mode router_proxy lan_proxy
 	config_get_bool ipv4_proxy "proxy" "ipv4_proxy" 1
 	config_get_bool ipv6_proxy "proxy" "ipv6_proxy" 1
 	config_get tcp_mode "proxy" "tcp_mode" "tproxy"
 	config_get udp_mode "proxy" "udp_mode" "tproxy"
+	config_get_bool router_proxy "proxy" "router_proxy" 1
+	config_get_bool lan_proxy "proxy" "lan_proxy" 1
 
 	local tproxy_fw_mark tproxy_fw_mask tproxy_rule_pref tproxy_route_table
 	config_get tproxy_fw_mark "routing" "tproxy_fw_mark" "0x80"
@@ -127,8 +130,62 @@ service_started() {
 	config_get tproxy_rule_pref "routing" "tproxy_rule_pref" "1024"
 	config_get tproxy_route_table "routing" "tproxy_route_table" "80"
 
+	local tun_fw_mark tun_fw_mask tun_rule_pref tun_route_table
+	config_get tun_fw_mark "routing" "tun_fw_mark" "0x81"
+	config_get tun_fw_mask "routing" "tun_fw_mask" "0xFF"
+	config_get tun_rule_pref "routing" "tun_rule_pref" "1025"
+	config_get tun_route_table "routing" "tun_route_table" "81"
+
+	local tproxy_enable tun_enable
+	tproxy_enable=0
+	[ "$tcp_mode" = "tproxy" ] || [ "$udp_mode" = "tproxy" ] && tproxy_enable=1
+	tun_enable=0
+	[ "$tcp_mode" = "tun" ] || [ "$udp_mode" = "tun" ] && tun_enable=1
+
+	# 等待 TUN 设备上线
+	if [ "$tun_enable" = 1 ]; then
+		local tun_name tun_timeout tun_interval
+		config_get tun_name "mixin" "tun_name" "momo"
+		config_get tun_timeout "proxy" "tun_timeout" "30"
+		config_get tun_interval "proxy" "tun_interval" "1"
+		log "Proxy" "Waiting for TUN device $tun_name..."
+		while [ "$tun_timeout" -gt 0 ]; do
+			if ip -j link show dev "$tun_name" 2>/dev/null | jsonfilter -q -e "@[@['flags'][@='UP']]" > /dev/null 2>&1; then
+				log "Proxy" "TUN device is online."
+				break
+			fi
+			tun_timeout=$((tun_timeout - tun_interval))
+			sleep "$tun_interval"
+		done
+		if [ "$tun_timeout" -le 0 ]; then
+			log "Proxy" "Timeout, TUN device not online."
+			log "App" "Exit."
+			return
+		fi
+	fi
+
+	# 兼容 br_netfilter
+	if [ "$tproxy_enable" = 1 ] && lsmod 2>/dev/null | grep -q br_netfilter; then
+		if [ "$ipv4_proxy" = 1 ]; then
+			local br_ip
+			br_ip=$(sysctl -e -n net.bridge.bridge-nf-call-iptables 2>/dev/null)
+			if [ "$br_ip" = 1 ]; then
+				touch "$BRIDGE_NF_CALL_IPTABLES_FLAG_PATH"
+				sysctl -q -w net.bridge.bridge-nf-call-iptables=0
+			fi
+		fi
+		if [ "$ipv6_proxy" = 1 ]; then
+			local br_ip6
+			br_ip6=$(sysctl -e -n net.bridge.bridge-nf-call-ip6tables 2>/dev/null)
+			if [ "$br_ip6" = 1 ]; then
+				touch "$BRIDGE_NF_CALL_IP6TABLES_FLAG_PATH"
+				sysctl -q -w net.bridge.bridge-nf-call-ip6tables=0
+			fi
+		fi
+	fi
+
 	# ip route/rule for TProxy
-	if [ "$tcp_mode" = "tproxy" ] || [ "$udp_mode" = "tproxy" ]; then
+	if [ "$tproxy_enable" = 1 ] && [ "$router_proxy" = 1 ]; then
 		if [ "$ipv4_proxy" = 1 ]; then
 			ip -4 route add local default dev lo table "$tproxy_route_table" 2>/dev/null
 			ip -4 rule add pref "$tproxy_rule_pref" \
@@ -143,7 +200,27 @@ service_started() {
 		fi
 	fi
 
-	# 防火墙劫持（ucode 模板 -> nft）
+	# ip route/rule for TUN
+	if [ "$tun_enable" = 1 ] && [ "$router_proxy" = 1 ]; then
+		local tun_device
+		tun_device=$(grep 'device-name:' "$RUN_PROFILE_PATH" 2>/dev/null | head -1 | cut -d: -f2 | tr -d ' "')
+		[ -z "$tun_device" ] && tun_device="momo"
+		if [ "$ipv4_proxy" = 1 ]; then
+			ip -4 route add unicast default dev "$tun_device" table "$tun_route_table" 2>/dev/null
+			ip -4 rule add pref "$tun_rule_pref" \
+				fwmark "$tun_fw_mark/$tun_fw_mask" \
+				table "$tun_route_table" 2>/dev/null
+		fi
+		if [ "$ipv6_proxy" = 1 ]; then
+			ip -6 route add unicast default dev "$tun_device" table "$tun_route_table" 2>/dev/null
+			ip -6 rule add pref "$tun_rule_pref" \
+				fwmark "$tun_fw_mark/$tun_fw_mask" \
+				table "$tun_route_table" 2>/dev/null
+		fi
+	fi
+
+	# 防火墙劫持
+	log "Proxy" "Applying nftables hijack..."
 	utpl -S "$HIJACK_UT" | nft -f - 2>&1
 	if nft list table inet monkey >/dev/null 2>&1; then
 		log "Proxy" "Hijack successful."
@@ -157,6 +234,13 @@ service_started() {
 service_stopped() {
 	del_routing
 	del_hijack
+	# 还原 br_netfilter
+	if rm "$BRIDGE_NF_CALL_IPTABLES_FLAG_PATH" > /dev/null 2>&1; then
+		sysctl -q -w net.bridge.bridge-nf-call-iptables=1
+	fi
+	if rm "$BRIDGE_NF_CALL_IP6TABLES_FLAG_PATH" > /dev/null 2>&1; then
+		sysctl -q -w net.bridge.bridge-nf-call-ip6tables=1
+	fi
 	rm -f "$STARTED_FLAG_PATH" 2>/dev/null
 }
 
