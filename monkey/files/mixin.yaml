@@ -1,0 +1,23 @@
+log-level: warning
+mode: rule
+ipv6: true
+tproxy-port: 7892
+mixed-port: 7890
+allow-lan: true
+
+api:
+  external-ui: "/usr/share/monkey/ui"
+  secret: ""
+
+dns:
+  enable: true
+  listen: "0.0.0.0:5353"
+  enhanced-mode: redir-host
+  nameserver:
+    - "https://doh.pub/dns-query"
+    - "https://dns.alidns.com/dns-query"
+  fallback:
+    - "https://dns.google/dns-query"
+  fallback-filter:
+    geoip: true
+    geoip-code: CN

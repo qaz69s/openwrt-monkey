@@ -1,0 +1,21 @@
+{
+    "admin/services/monkey": {
+        "title": "Monkey",
+        "action": { "type": "firstchild" },
+        "depends": {
+            "acl": ["luci-app-monkey"],
+            "fs": { "/etc/init.d/monkey": "executable" },
+            "uci": { "monkey": true }
+        }
+    },
+    "admin/services/monkey/config": {
+        "title": "配置",
+        "order": 20,
+        "action": { "type": "view", "path": "monkey/config" }
+    },
+    "admin/services/monkey/logs": {
+        "title": "日志",
+        "order": 30,
+        "action": { "type": "view", "path": "monkey/logs" }
+    }
+}

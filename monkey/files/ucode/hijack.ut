@@ -1,0 +1,100 @@
+#!/usr/bin/utpl
+
+{%-
+	'use strict';
+
+	import { cursor } from 'uci';
+	import { connect } from 'ubus';
+	import { uci_bool, uci_array, load_profile } from '/etc/monkey/ucode/include.uc';
+
+	const uci = cursor();
+	const profile = load_profile();
+
+	let tproxy_port;
+
+	if (profile['tproxy-port']) {
+		tproxy_port = profile['tproxy-port'];
+	} else {
+		const listeners = filter(profile['listeners'] || [],
+			(x) => x['type'] === 'tproxy');
+		if (length(listeners) > 0) {
+			tproxy_port = listeners[0]['port'];
+		}
+	}
+
+	let dns_port;
+	if (profile['dns']) {
+		const dns_listen = profile['dns']['listen'];
+		const dns_rindex = rindex(dns_listen, ':');
+		if (dns_rindex >= 0 && dns_rindex + 1 < length(dns_listen)) {
+			dns_port = substr(dns_listen, dns_rindex + 1);
+		}
+	}
+
+	uci.load('monkey');
+
+	const tcp_mode = uci.get('monkey', 'proxy', 'tcp_mode') || 'tproxy';
+	const udp_mode = uci.get('monkey', 'proxy', 'udp_mode') || 'tproxy';
+	const ipv4_proxy = uci_bool(uci.get('monkey', 'proxy', 'ipv4_proxy'));
+	const ipv6_proxy = uci_bool(uci.get('monkey', 'proxy', 'ipv6_proxy'));
+	const ipv4_dns_hijack = uci_bool(uci.get('monkey', 'proxy', 'ipv4_dns_hijack'));
+	const ipv6_dns_hijack = uci_bool(uci.get('monkey', 'proxy', 'ipv6_dns_hijack'));
+
+	const tproxy_fw_mark = uci.get('monkey', 'routing', 'tproxy_fw_mark') || '0x80';
+	const tproxy_fw_mask = uci.get('monkey', 'routing', 'tproxy_fw_mask') || '0xFF';
+
+	// ── 放行 IP ──
+	const reserved_ipv4 = [
+		'0.0.0.0/8','10.0.0.0/8','127.0.0.0/8','100.64.0.0/10',
+		'169.254.0.0/16','172.16.0.0/12','192.168.0.0/16',
+		'224.0.0.0/4','240.0.0.0/4'
+	];
+	const reserved_ipv6 = [
+		'::/128','::1/128','::ffff:0:0/96','100::/64','64:ff9b::/96',
+		'2001::/32','2001:10::/28','2001:20::/28','2001:db8::/32',
+		'2002::/16','fc00::/7','fe80::/10','ff00::/8'
+	];
+-%}
+table inet monkey {
+	chain prerouting {
+		type filter hook prerouting priority mangle; policy accept;
+
+		# DNS 劫持
+{% if (dns_port && ipv4_dns_hijack) { %}
+		meta l4proto udp ip daddr 192.168.0.0/16 udp dport 53 redirect to :{{ dns_port }}
+{% } %}
+{% if (dns_port && ipv6_dns_hijack) { %}
+		meta l4proto udp ip6 daddr fc00::/7 udp dport 53 redirect to :{{ dns_port }}
+{% } %}
+	}
+
+	chain divert_tproxy {
+		type filter hook prerouting priority 0; policy accept;
+
+{% if (tproxy_port && (tcp_mode == 'tproxy' || udp_mode == 'tproxy')) { %}
+		# IPv4 TProxy
+{%  if (ipv4_proxy) { %}
+{%   for (ip in reserved_ipv4) { %}
+		ip daddr {{ ip }} accept;
+{%   } %}
+{%   if (tproxy_fw_mark && tproxy_fw_mask) { %}
+		meta mark {{ tproxy_fw_mark }} / {{ tproxy_fw_mask }} accept;
+{%   } %}
+		meta l4proto tcp tproxy to :{{ tproxy_port }};
+		meta l4proto udp tproxy to :{{ tproxy_port }};
+{%  } %}
+
+		# IPv6 TProxy
+{%  if (ipv6_proxy) { %}
+{%   for (ip in reserved_ipv6) { %}
+		ip6 daddr {{ ip }} accept;
+{%   } %}
+{%   if (tproxy_fw_mark && tproxy_fw_mask) { %}
+		meta mark {{ tproxy_fw_mark }} / {{ tproxy_fw_mask }} accept;
+{%   } %}
+		meta l4proto tcp tproxy to :{{ tproxy_port }};
+		meta l4proto udp tproxy to :{{ tproxy_port }};
+{%  } %}
+{% } %}
+	}
+}

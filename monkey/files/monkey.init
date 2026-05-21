@@ -1,0 +1,171 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+USE_PROCD=1
+
+PROG="/usr/bin/monkey"
+HOME_DIR="/etc/monkey"
+
+. "$IPKG_INSTROOT$HOME_DIR/scripts/include.sh"
+
+boot_func() {
+	prepare_files
+	config_load monkey
+	local enabled start_delay
+	config_get_bool enabled "config" "enabled" 0
+	config_get start_delay "config" "start_delay" 0
+	if [ "$enabled" = 1 ] && [ "$start_delay" -gt 0 ]; then
+		log "App" "Start after $start_delay seconds."
+		sleep "$start_delay"
+	fi
+	start
+}
+
+boot() {
+	boot_func < /dev/null > /dev/null 2>&1 &
+}
+
+start_service() {
+	prepare_files
+	config_load monkey
+
+	local enabled
+	config_get_bool enabled "config" "enabled" 0
+	if [ "$enabled" = 0 ]; then
+		log "App" "Disabled."
+		return
+	fi
+
+	log "App" "Enabled."
+	log "App" "Start."
+
+	if [ ! -x $PROG ]; then
+		log "App" "Core not executable."
+		return
+	fi
+
+	# 读取 UCI 配置
+	local profile test_profile tproxy_fw_mark tproxy_fw_mask
+	config_get profile "config" "profile" ""
+	config_get_bool test_profile "config" "test_profile" 0
+	config_get tproxy_fw_mark "routing" "tproxy_fw_mark" "0x80"
+	config_get tproxy_fw_mask "routing" "tproxy_fw_mask" "0xFF"
+
+	local proxy_enabled ipv4_proxy ipv6_proxy tcp_mode udp_mode
+	config_get_bool proxy_enabled "proxy" "enabled" 0
+	config_get_bool ipv4_proxy "proxy" "ipv4_proxy" 1
+	config_get_bool ipv6_proxy "proxy" "ipv6_proxy" 1
+	config_get tcp_mode "proxy" "tcp_mode" "tproxy"
+	config_get udp_mode "proxy" "udp_mode" "tproxy"
+
+	# 获取 profile
+	local profile_type profile_id
+	profile_type=$(echo "$profile" | cut -d ':' -f 1)
+	profile_id=$(echo "$profile" | cut -d ':' -f 2)
+
+	if [ "$profile_type" = "file" ]; then
+		local profile_file="$PROFILES_DIR/$profile_id"
+		if [ ! -f "$profile_file" ]; then
+			log "Profile" "File not found: $profile_file"
+			return
+		fi
+		cp -f "$profile_file" "$RUN_PROFILE_PATH"
+	elif [ "$profile_type" = "mixin" ]; then
+		# 仅使用 mixin 生成本地配置
+		$UCODE_DIR/include.uc > "$RUN_PROFILE_PATH" 2>/dev/null
+		if [ ! -s "$RUN_PROFILE_PATH" ]; then
+			log "Profile" "Mixin generate failed."
+			return
+		fi
+	else
+		log "Profile" "No profile selected."
+		return
+	fi
+
+	# 测试配置
+	if [ "$test_profile" = 1 ]; then
+		log "Profile" "Testing..."
+		if $PROG -d "$RUN_DIR" check >> "$CORE_LOG_PATH" 2>&1; then
+			log "Profile" "Test passed."
+		else
+			log "Profile" "Test failed. Check core log."
+			return
+		fi
+	fi
+
+	# 启动核心
+	log "Core" "Start."
+	procd_open_instance
+	procd_set_param command /bin/sh -c \
+		"$PROG -d $RUN_DIR run --disable-color >> $CORE_LOG_PATH 2>&1"
+	procd_set_param file "$RUN_PROFILE_PATH"
+	procd_set_param pidfile "$PID_FILE_PATH"
+	procd_set_param respawn
+	procd_close_instance
+}
+
+service_started() {
+	[ -f "$STARTED_FLAG_PATH" ] || return 0
+
+	config_load monkey
+	local proxy_enabled
+	config_get_bool proxy_enabled "proxy" "enabled" 0
+	[ "$proxy_enabled" = 0 ] && return 0
+
+	log "Proxy" "Enabled."
+
+	local ipv4_proxy ipv6_proxy tcp_mode udp_mode
+	config_get_bool ipv4_proxy "proxy" "ipv4_proxy" 1
+	config_get_bool ipv6_proxy "proxy" "ipv6_proxy" 1
+	config_get tcp_mode "proxy" "tcp_mode" "tproxy"
+	config_get udp_mode "proxy" "udp_mode" "tproxy"
+
+	local tproxy_fw_mark tproxy_fw_mask tproxy_rule_pref tproxy_route_table
+	config_get tproxy_fw_mark "routing" "tproxy_fw_mark" "0x80"
+	config_get tproxy_fw_mask "routing" "tproxy_fw_mask" "0xFF"
+	config_get tproxy_rule_pref "routing" "tproxy_rule_pref" "1024"
+	config_get tproxy_route_table "routing" "tproxy_route_table" "80"
+
+	# ip route/rule for TProxy
+	if [ "$tcp_mode" = "tproxy" ] || [ "$udp_mode" = "tproxy" ]; then
+		if [ "$ipv4_proxy" = 1 ]; then
+			ip -4 route add local default dev lo table "$tproxy_route_table" 2>/dev/null
+			ip -4 rule add pref "$tproxy_rule_pref" \
+				fwmark "$tproxy_fw_mark/$tproxy_fw_mask" \
+				table "$tproxy_route_table" 2>/dev/null
+		fi
+		if [ "$ipv6_proxy" = 1 ]; then
+			ip -6 route add local default dev lo table "$tproxy_route_table" 2>/dev/null
+			ip -6 rule add pref "$tproxy_rule_pref" \
+				fwmark "$tproxy_fw_mark/$tproxy_fw_mask" \
+				table "$tproxy_route_table" 2>/dev/null
+		fi
+	fi
+
+	# 防火墙劫持（ucode 模板 -> nft）
+	utpl -S "$HIJACK_UT" | nft -f - 2>&1
+	if nft list table inet monkey >/dev/null 2>&1; then
+		log "Proxy" "Hijack successful."
+	else
+		log "Proxy" "Hijack failed."
+	fi
+
+	touch "$STARTED_FLAG_PATH"
+}
+
+service_stopped() {
+	del_routing
+	del_hijack
+	rm -f "$STARTED_FLAG_PATH" 2>/dev/null
+}
+
+reload_service() {
+	service_stopped
+	sleep 1
+	start
+}
+
+service_triggers() {
+	procd_add_reload_trigger "monkey"
+}
