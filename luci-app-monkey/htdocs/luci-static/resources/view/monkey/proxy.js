@@ -30,7 +30,7 @@ return view.extend({
 
         s.tab('proxy', _('Proxy Config'));
 
-        o = s.taboption('proxy', form.Flag, 'enabled', _('Enable'));
+        o = s.taboption('proxy', form.Flag, 'enabled', _('Proxy Enable'));
         o.rmempty = false;
 
         o = s.taboption('proxy', form.ListValue, 'tcp_mode', _('TCP Mode'));
@@ -48,23 +48,29 @@ return view.extend({
 
         o = s.taboption('proxy', form.Flag, 'ipv4_dns_hijack', _('IPv4 DNS Hijack'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('proxy', form.Flag, 'ipv6_dns_hijack', _('IPv6 DNS Hijack'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('proxy', form.Flag, 'ipv4_proxy', _('IPv4 Proxy'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('proxy', form.Flag, 'ipv6_proxy', _('IPv6 Proxy'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('proxy', form.Flag, 'fake_ip_ping_hijack', _('Fake-IP Ping Hijack'));
         o.rmempty = false;
+        o.default = '1';
 
         s.tab('router', _('Router Proxy'));
 
         o = s.taboption('router', form.Flag, 'router_proxy', _('Enable'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('router', form.SectionValue, '_router_access_control', form.TableSection, 'router_access_control', _('Access Control'));
         o.retain = true;
@@ -106,6 +112,7 @@ return view.extend({
 
         o = s.taboption('lan', form.Flag, 'lan_proxy', _('Enable'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('lan', form.DynamicList, 'lan_inbound_interface', _('Inbound Interface'));
         o.retain = true;
