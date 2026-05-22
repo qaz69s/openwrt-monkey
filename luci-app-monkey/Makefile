@@ -6,3 +6,5 @@ LUCI_TITLE:=LuCI Support for Monkey (mihomo-rust TProxy)
 LUCI_DEPENDS:=+luci-base +monkey
 
 include $(TOPDIR)/feeds/luci/luci.mk
+# call BuildPackage - OpenWrt buildroot signature
+
