@@ -41,39 +41,6 @@ define Package/monkey/conffiles
 /etc/monkey/mixin.yaml
 endef
 
-define Package/monkey/install
-	$(INSTALL_DIR) $(1)/etc/monkey
-	$(INSTALL_DIR) $(1)/etc/monkey/ucode
-	$(INSTALL_DIR) $(1)/etc/monkey/scripts
-	$(INSTALL_DIR) $(1)/etc/monkey/nftables
-	$(INSTALL_DIR) $(1)/etc/monkey/profiles
-	$(INSTALL_DIR) $(1)/etc/monkey/run
-	$(INSTALL_DIR) $(1)/etc/monkey/run/providers
-	$(INSTALL_DIR) $(1)/etc/monkey/run/providers/rule
-	$(INSTALL_DIR) $(1)/etc/monkey/run/providers/proxy
-
-	$(INSTALL_DATA) $(CURDIR)/files/mixin.yaml $(1)/etc/monkey/mixin.yaml
-
-	$(INSTALL_BIN) $(CURDIR)/files/ucode/include.uc $(1)/etc/monkey/ucode/include.uc
-	$(INSTALL_BIN) $(CURDIR)/files/ucode/hijack.ut $(1)/etc/monkey/ucode/hijack.ut
-
-	$(INSTALL_BIN) $(CURDIR)/files/scripts/include.sh $(1)/etc/monkey/scripts/include.sh
-
-	$(INSTALL_BIN) $(CURDIR)/files/nftables/geoip_cn.nft $(1)/etc/monkey/nftables/geoip_cn.nft
-	$(INSTALL_BIN) $(CURDIR)/files/nftables/geoip6_cn.nft $(1)/etc/monkey/nftables/geoip6_cn.nft
-
-	$(INSTALL_DIR) $(1)/etc/config
-	$(INSTALL_CONF) $(CURDIR)/files/monkey.conf $(1)/etc/config/monkey
-
-	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(CURDIR)/files/monkey.init $(1)/etc/init.d/monkey
-
-	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
-	$(INSTALL_DATA) $(CURDIR)/files/monkey.upgrade $(1)/lib/upgrade/keep.d/monkey
-
-	$(INSTALL_DIR) $(1)/usr/bin
-endef
-
 define Build/Prepare
 	mkdir -p $(PKG_BUILD_DIR)
 	[ -n "$(MH_ARCH)" ] || { \
