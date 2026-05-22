@@ -30,8 +30,9 @@ return view.extend({
 
         s.tab('proxy', _('Proxy Config'));
 
-        o = s.taboption('proxy', form.Flag, 'enabled', _('Proxy Enable'));
+        o = s.taboption('proxy', form.Flag, 'enabled', _('Enable'));
         o.rmempty = false;
+        o.default = '1';
 
         o = s.taboption('proxy', form.ListValue, 'tcp_mode', _('TCP Mode'));
         o.optional = true;
